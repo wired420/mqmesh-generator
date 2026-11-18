@@ -121,6 +121,17 @@ public:
 	// Return code is the result to exit with
 	int RunMainLoop();
 
+	// Run a single frame of the main loop. Returns false when the app should exit.
+	bool RunFrame();
+
+	// Web build hooks (called from JavaScript via web_files.cpp)
+	void OnZoneFilesReady(const std::string& zoneShortName);
+	void OnNavMeshFileReady();
+	void RequestZone(const std::string& zoneShortName, bool loadMesh);
+	void BuildNavMesh();
+	void SaveMeshPublic() { SaveMesh(); }
+	int GetWebStatus() const;
+
 	//------------------------------------------------------------------------
 
 	void ShowZonePickerDialog();
@@ -251,6 +262,7 @@ private:
 	// zone to load on next pass
 	std::string m_nextZoneToLoad;
 	bool m_loadMeshOnZone = false;
+	bool m_pendingLoadMesh = false;
 
 	// The main window surface
 	SDL_Window* m_window = nullptr;

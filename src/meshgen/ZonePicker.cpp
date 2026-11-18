@@ -5,6 +5,9 @@
 #include "meshgen/ZonePicker.h"
 
 #include <mq/base/String.h>
+#if defined(__EMSCRIPTEN__)
+#include "platform/web_files.h"
+#endif
 #include <glm/glm.hpp>
 
 #include <SDL2/SDL_opengl.h>
@@ -134,6 +137,19 @@ bool ZonePicker::Show(bool focus, std::string* selected_zone /* = nullptr */)
 		ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse))
 	{
 		ImGui::Text("Select a zone or type to filter by name");
+#if defined(__EMSCRIPTEN__)
+		if (!WebFiles::HasFolder())
+		{
+			ImGui::TextColored(ImColor(255, 255, 0), "Choose your EverQuest folder first so the zone files can be read.");
+			ImGui::SameLine();
+			if (ImGui::SmallButton("Choose folder..."))
+				WebFiles::PickEverQuestFolder();
+		}
+		else
+		{
+			ImGui::TextColored(ImColor(160, 160, 160), "%s. Only zones found there are listed.", WebFiles::GetFolderDescription().c_str());
+		}
+#endif
 
 		bool selectSingle = false;
 		ImGui::PushItemWidth(ImGui::GetWindowContentRegionMax().x - ImGui::GetWindowContentRegionMin().x);
@@ -193,6 +209,10 @@ bool ZonePicker::Show(bool focus, std::string* selected_zone /* = nullptr */)
 					{
 						const std::string& longName = zonePair.first;
 						const std::string& shortName = zonePair.second;
+#if defined(__EMSCRIPTEN__)
+						if (WebFiles::HasFolder() && !WebFiles::HasZone(shortName))
+							continue;
+#endif
 
 						ImGui::PushID(shortName.c_str());
 
@@ -234,6 +254,10 @@ bool ZonePicker::Show(bool focus, std::string* selected_zone /* = nullptr */)
 				const std::string& shortName = mapIter.first;
 				const std::string& longName = mapIter.second;
 
+#if defined(__EMSCRIPTEN__)
+				if (WebFiles::HasFolder() && !WebFiles::HasZone(shortName))
+					continue;
+#endif
 				if (mq::ci_find_substr(shortName, text) != -1
 					|| mq::ci_find_substr(longName, text) != -1)
 				{

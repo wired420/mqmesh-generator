@@ -9,9 +9,29 @@
 #include "meshgen/MapGeometryLoader.h"
 #include "meshgen/NavMeshTool.h"
 #include "meshgen/ZonePicker.h"
+#if defined(_WIN32)
 #include "meshgen/resource.h"
+#endif
+#if defined(__EMSCRIPTEN__)
+#include "imgui_impl_opengl3.h"
+#include "imgui_impl_sdl2.h"
+#include "platform/gl_renderer.h"
+#include "platform/web_files.h"
+#include <emscripten.h>
+#include <emscripten/html5.h>
+#include <GLES3/gl3.h>
+#define ImGui_ImplOpenGLX_Init() ImGui_ImplOpenGL3_Init("#version 300 es")
+#define ImGui_ImplOpenGLX_Shutdown ImGui_ImplOpenGL3_Shutdown
+#define ImGui_ImplOpenGLX_NewFrame ImGui_ImplOpenGL3_NewFrame
+#define ImGui_ImplOpenGLX_RenderDrawData ImGui_ImplOpenGL3_RenderDrawData
+#else
 #include "meshgen/imgui/imgui_impl_opengl2.h"
 #include "meshgen/imgui/imgui_impl_sdl2.h"
+#define ImGui_ImplOpenGLX_Init() ImGui_ImplOpenGL2_Init()
+#define ImGui_ImplOpenGLX_Shutdown ImGui_ImplOpenGL2_Shutdown
+#define ImGui_ImplOpenGLX_NewFrame ImGui_ImplOpenGL2_NewFrame
+#define ImGui_ImplOpenGLX_RenderDrawData ImGui_ImplOpenGL2_RenderDrawData
+#endif
 #include "common/Utilities.h"
 
 #include "imgui/ImGuiUtils.h"
@@ -22,9 +42,13 @@
 #include <fmt/format.h>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
+#if defined(_WIN32)
 #include <gl/GLU.h>
+#endif
 #include <spdlog/spdlog.h>
+#if defined(_WIN32)
 #include <spdlog/sinks/msvc_sink.h>
+#endif
 #include <spdlog/sinks/basic_file_sink.h>
 #include <zone-utilities/log/log_base.h>
 #include <zone-utilities/log/log_macros.h>
@@ -97,10 +121,14 @@ Application::Application(const std::string& defaultZone)
 	, m_nextZoneToLoad(defaultZone)
 	, m_loadMeshOnZone(!defaultZone.empty())
 {
+#if defined(_WIN32)
 	// Construct the path to the ini file
 	CHAR fullPath[MAX_PATH] = { 0 };
 	GetModuleFileNameA(nullptr, fullPath, MAX_PATH);
 	PathRemoveFileSpecA(fullPath);
+#else
+	const char* fullPath = "/app";
+#endif
 
 	// TODO: Support config directory
 	m_iniFile = fmt::format("{}/config/MeshGenerator_UI.ini", fullPath);
@@ -109,7 +137,7 @@ Application::Application(const std::string& defaultZone)
 	// set up default logger
 	auto logger = spdlog::create<spdlog::sinks::basic_file_sink_mt>("MeshGen", m_logFile, true);
 	logger->sinks().push_back(std::make_shared<ConsoleLogSink<std::mutex>>(this));
-#if defined(_DEBUG)
+#if defined(_DEBUG) && defined(_WIN32)
 	logger->sinks().push_back(std::make_shared<spdlog::sinks::msvc_sink_mt>());
 #endif
 	spdlog::set_default_logger(logger);
@@ -124,6 +152,10 @@ Application::Application(const std::string& defaultZone)
 
 	m_meshTool->setContext(m_rcContext.get());
 	m_meshTool->setOutputPath(m_eqConfig.GetOutputPath().c_str());
+
+#if defined(__EMSCRIPTEN__)
+	WebFiles::SetApplication(this);
+#endif
 
 	InitializeWindow();
 }
@@ -142,7 +174,11 @@ bool Application::InitializeWindow()
 		char szMessage[256];
 		sprintf_s(szMessage, "Could not initialize SDL: %d", sdlInitResult);
 
+#if defined(_WIN32)
 		::MessageBoxA(NULL, szMessage, "Error Starting Engine", MB_OK | MB_ICONERROR);
+#else
+		fprintf(stderr, "%s\n", szMessage);
+#endif
 		return false;
 	}
 
@@ -150,9 +186,27 @@ bool Application::InitializeWindow()
 	SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
 	SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
 	SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
+#if defined(__EMSCRIPTEN__)
+	SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
+	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+
+	// Size the window to the browser canvas.
+	{
+		double cssW = 0, cssH = 0;
+		emscripten_get_element_css_size("#canvas", &cssW, &cssH);
+		if (cssW > 0 && cssH > 0)
+		{
+			m_width = (int)cssW;
+			m_height = (int)cssH;
+		}
+	}
+#else
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 2);
+#endif
 
+#if !defined(__EMSCRIPTEN__)
 	// scale default window size by monitor dpi
 	float dpi = 0;
 	if (SDL_GetDisplayDPI(0, &dpi, 0, 0) == 0)
@@ -175,8 +229,13 @@ bool Application::InitializeWindow()
 
 	m_window = SDL_CreateWindow("MQ2Nav Mesh Generator", wx, wy, m_width, m_height,
 		SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI);
+#else
+	m_window = SDL_CreateWindow("MQ2Nav Mesh Generator", 0, 0, m_width, m_height,
+		SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE);
+#endif
 	m_glContext = SDL_GL_CreateContext(m_window);
 
+#if defined(_WIN32)
 	// set window icon
 	HINSTANCE handle = ::GetModuleHandle(nullptr);
 	HICON icon = ::LoadIcon(handle, MAKEINTRESOURCE(IDI_ICON1));
@@ -189,6 +248,7 @@ bool Application::InitializeWindow()
 			::SetClassLongPtrA(hwnd, GCLP_HICON, reinterpret_cast<LONG_PTR>(icon));
 		}
 	}
+#endif
 
 	IMGUI_CHECKVERSION();
 	ImGui::CreateContext();
@@ -201,7 +261,7 @@ bool Application::InitializeWindow()
 	ImGui::StyleColorsDark();
 
 	ImGui_ImplSDL2_InitForOpenGL(m_window, m_glContext);
-	ImGui_ImplOpenGL2_Init();
+	ImGui_ImplOpenGLX_Init();
 
 	mq::imgui::ConfigureFonts(io.Fonts);
 	mq::imgui::ConfigureStyle();
@@ -209,23 +269,31 @@ bool Application::InitializeWindow()
 	glEnable(GL_CULL_FACE);
 
 	float fogCol[4] = { 0.32f, 0.25f, 0.25f, 1 };
+#if defined(__EMSCRIPTEN__)
+	render::Init();
+	render::SetFogColor(fogCol);
+	render::SetFogRange(0, 10);
+#else
 	glEnable(GL_FOG);
 	glFogi(GL_FOG_MODE, GL_LINEAR);
 	glFogf(GL_FOG_START, 0);
 	glFogf(GL_FOG_END, 10);
 	glFogfv(GL_FOG_COLOR, fogCol);
+#endif
 
 	glDepthFunc(GL_LEQUAL);
 
+#if !defined(__EMSCRIPTEN__)
 	glEnable(GL_POINT_SMOOTH);
 	glEnable(GL_LINE_SMOOTH);
+#endif
 
 	return true;
 }
 
 void Application::DestroyWindow()
 {
-	ImGui_ImplOpenGL2_Shutdown();
+	ImGui_ImplOpenGLX_Shutdown();
 	ImGui_ImplSDL2_Shutdown();
 	ImGui::DestroyContext();
 
@@ -234,15 +302,50 @@ void Application::DestroyWindow()
 	SDL_Quit();
 }
 
+#if defined(__EMSCRIPTEN__)
+static void EmscriptenFrame(void* arg)
+{
+	static_cast<Application*>(arg)->RunFrame();
+}
+#endif
+
 int Application::RunMainLoop()
 {
 	m_time = 0.0f;
 	m_lastTime = SDL_GetTicks();
 
-	float timeAcc = 0.0f;
+#if defined(__EMSCRIPTEN__)
+	// The browser drives the loop; this call does not return.
+	emscripten_set_main_loop_arg(EmscriptenFrame, this, 0, true);
+	return 0;
+#else
+	while (RunFrame()) {}
 
-	while (!m_done)
+	Halt();
+
+	m_geom.reset();
+	return 0;
+#endif
+}
+
+bool Application::RunFrame()
+{
+	static float timeAcc = 0.0f;
+
 	{
+#if defined(__EMSCRIPTEN__)
+		// Follow the size of the browser canvas.
+		{
+			double cssW = 0, cssH = 0;
+			emscripten_get_element_css_size("#canvas", &cssW, &cssH);
+			if ((int)cssW > 0 && (int)cssH > 0 && ((int)cssW != m_width || (int)cssH != m_height))
+			{
+				m_width = (int)cssW;
+				m_height = (int)cssH;
+				SDL_SetWindowSize(m_window, m_width, m_height);
+			}
+		}
+#endif
 		// fractional time since last update
 		Uint32 time = SDL_GetTicks();
 		m_timeDelta = (time - m_lastTime) / 1000.0f;
@@ -267,10 +370,20 @@ int Application::RunMainLoop()
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		glEnable(GL_BLEND);
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-		glDisable(GL_TEXTURE_2D);
 
 		// Render 3d
 		glEnable(GL_DEPTH_TEST);
+#if defined(__EMSCRIPTEN__)
+		m_proj = glm::perspective(glm::radians(50.0f), (float)m_width / (float)m_height, m_camf, m_camr);
+
+		glm::mat4 m2 = glm::mat4x4{ 1.0f };
+		m2 = glm::rotate(m2, glm::radians(m_r.x), glm::vec3{ 1.0f, 0.0f, 0.0f });
+		m2 = glm::rotate(m2, glm::radians(m_r.y), glm::vec3{ 0.0f, 1.0f, 0.0f });
+		m_model = glm::translate(m2, -m_cam);
+		m_view = glm::ivec4(0, 0, m_width, m_height);
+		render::SetMatrices(m_proj, m_model);
+#else
+		glDisable(GL_TEXTURE_2D);
 		glMatrixMode(GL_PROJECTION);
 		glLoadIdentity();
 		gluPerspective(50.0f, (float)m_width / (float)m_height, m_camf, m_camr);
@@ -291,6 +404,7 @@ int Application::RunMainLoop()
 		// Get hit ray position and direction.
 		glGetFloatv(GL_PROJECTION_MATRIX, glm::value_ptr(m_proj));
 		glGetIntegerv(GL_VIEWPORT, glm::value_ptr(m_view));
+#endif
 
 		m_rays = glm::unProject(glm::vec3{ m_m.x, m_m.y, 0.0f }, m_model, m_proj, m_view);
 		m_raye = glm::unProject(glm::vec3{ m_m.x, m_m.y, 1.0f }, m_model, m_proj, m_view);
@@ -301,7 +415,7 @@ int Application::RunMainLoop()
 		HandleEvents();
 
 		// Start the ImGui Frame
-		ImGui_ImplOpenGL2_NewFrame();
+		ImGui_ImplOpenGLX_NewFrame();
 		ImGui_ImplSDL2_NewFrame();
 		ImGui::NewFrame();
 
@@ -312,15 +426,25 @@ int Application::RunMainLoop()
 
 			UpdateCamera();
 
+#if defined(__EMSCRIPTEN__)
+			// the camera may have moved
+			m_model = glm::translate(glm::rotate(glm::rotate(glm::mat4x4{ 1.0f }, glm::radians(m_r.x), glm::vec3{ 1.0f, 0.0f, 0.0f }),
+				glm::radians(m_r.y), glm::vec3{ 0.0f, 1.0f, 0.0f }), -m_cam);
+			render::SetMatrices(m_proj, m_model);
+			render::SetFogEnabled(true);
+			m_meshTool->handleRender();
+			render::SetFogEnabled(false);
+#else
 			glEnable(GL_FOG);
 			m_meshTool->handleRender();
 			glDisable(GL_FOG);
+#endif
 
 			glEnable(GL_DEPTH_TEST);
 		}
 
 		ImGui::Render();
-		ImGui_ImplOpenGL2_RenderDrawData(ImGui::GetDrawData());
+		ImGui_ImplOpenGLX_RenderDrawData(ImGui::GetDrawData());
 		SDL_GL_SwapWindow(m_window);
 
 		ImGuiIO& io = ImGui::GetIO();
@@ -337,20 +461,25 @@ int Application::RunMainLoop()
 		// Load a zone if a zone load was requested
 		if (!m_nextZoneToLoad.empty())
 		{
+#if defined(__EMSCRIPTEN__)
+			// Copy the zone's files out of the picked EverQuest folder first;
+			// OnZoneFilesReady() continues the load when they are in place.
+			m_pendingLoadMesh = m_loadMeshOnZone;
+			m_activityMessage = "Reading zone files...";
+			WebFiles::RequestZoneFiles(m_nextZoneToLoad);
+#else
 			PushEvent([zone = m_nextZoneToLoad, loadMesh = m_loadMeshOnZone, this]()
 			{
 				LoadGeometry(zone, loadMesh);
 			});
+#endif
 
 			m_loadMeshOnZone = false;
 			m_nextZoneToLoad.clear();
 		}
 	}
 
-	Halt();
-
-	m_geom.reset();
-	return 0;
+	return !m_done;
 }
 
 void Application::HandleEvents()
@@ -524,8 +653,10 @@ void Application::HandleEvents()
 			break;
 
 		case SDL_QUIT:
+#if !defined(__EMSCRIPTEN__)
 			Halt();
 			m_done = true;
+#endif
 			break;
 
 		default:
@@ -598,6 +729,12 @@ void Application::RenderInterface()
 	{
 		if (ImGui::BeginMenu("File"))
 		{
+#if defined(__EMSCRIPTEN__)
+			if (ImGui::MenuItem("Choose EverQuest Folder..."))
+			{
+				WebFiles::PickEverQuestFolder();
+			}
+#endif
 			if (ImGui::MenuItem("Open Zone", "Ctrl+O", nullptr,
 				!m_meshTool->isBuildingTiles()))
 			{
@@ -611,10 +748,12 @@ void Application::RenderInterface()
 				m_showSettingsDialog = true;
 			}
 
+#if !defined(__EMSCRIPTEN__)
 			ImGui::Separator();
 
 			if (ImGui::MenuItem("Quit", "Alt+F4"))
 				m_done = true;
+#endif
 			ImGui::EndMenu();
 		}
 
@@ -881,10 +1020,64 @@ void Application::OpenMesh()
 	if (m_meshTool->isBuildingTiles())
 		return;
 
+#if defined(__EMSCRIPTEN__)
+	if (!m_zoneLoaded)
+		return;
+
+	// Ask the browser for a .navmesh file; OnNavMeshFileReady() loads it.
+	WebFiles::PickNavMeshFile(m_navMesh->GetFullFilePath());
+#else
 	if (m_navMesh->LoadNavMeshFile() != NavMesh::LoadResult::Success)
 	{
 		m_showFailedToOpenDialog = true;
 	}
+#endif
+}
+
+void Application::OnNavMeshFileReady()
+{
+	if (m_navMesh->LoadNavMeshFile() != NavMesh::LoadResult::Success)
+	{
+		m_showFailedToOpenDialog = true;
+	}
+}
+
+void Application::RequestZone(const std::string& zoneShortName, bool loadMesh)
+{
+	if (m_meshTool->isBuildingTiles())
+		return;
+	m_nextZoneToLoad = zoneShortName;
+	m_loadMeshOnZone = loadMesh;
+	m_showZonePickerDialog = false;
+}
+
+void Application::BuildNavMesh()
+{
+	if (!m_geom || m_meshTool->isBuildingTiles())
+		return;
+	m_meshTool->UpdateTileSizes();
+	m_meshTool->handleBuild();
+}
+
+int Application::GetWebStatus() const
+{
+	if (m_meshTool->isBuildingTiles())
+		return 2;
+	if (!m_zoneLoaded)
+		return 0;
+	if (m_navMesh->IsNavMeshLoaded() && m_navMesh->GetNavMesh()->getMaxTiles() > 0)
+		return 3;
+	return 1;
+}
+
+void Application::OnZoneFilesReady(const std::string& zoneShortName)
+{
+	m_activityMessage.clear();
+
+	PushEvent([zone = zoneShortName, loadMesh = m_pendingLoadMesh, this]()
+	{
+		LoadGeometry(zone, loadMesh);
+	});
 }
 
 void Application::SaveMesh()
@@ -893,6 +1086,11 @@ void Application::SaveMesh()
 		return;
 
 	m_meshTool->SaveNavMesh();
+
+#if defined(__EMSCRIPTEN__)
+	// Hand the file to the browser as a download.
+	WebFiles::DownloadFile(m_navMesh->GetFullFilePath(), m_zoneShortname + ".navmesh");
+#endif
 }
 
 void Application::ShowSettingsDialog()
@@ -912,10 +1110,18 @@ void Application::ShowSettingsDialog()
 		ImGui::PopItemWidth();
 		ImGui::SameLine();
 		ImGui::PushItemWidth(125);
+#if defined(__EMSCRIPTEN__)
+		if (ImGui::Button("Change##EverquestPath", ImVec2(120, 0)))
+			WebFiles::PickEverQuestFolder();
+		ImGui::PopItemWidth();
+		ImGui::TextColored(ImColor(160, 160, 160), "%s", WebFiles::GetFolderDescription().c_str());
+#else
 		if (ImGui::Button("Change##EverquestPath", ImVec2(120, 0)))
 			m_eqConfig.SelectEverquestPath();
 		ImGui::PopItemWidth();
+#endif
 
+#if !defined(__EMSCRIPTEN__)
 		ImGui::Text("Navmesh Path (Path to MQ2 root directory)");
 		ImGui::PushItemWidth(400);
 		ImGui::PushStyleColor(ImGuiCol_Text, (ImVec4)ImColor(244, 250, 125));
@@ -931,6 +1137,7 @@ void Application::ShowSettingsDialog()
 			m_navMesh->SetNavMeshDirectory(m_eqConfig.GetOutputPath());
 		}
 		ImGui::PopItemWidth();
+#endif
 
 		bool useExtents = m_eqConfig.GetUseMaxExtents();
 		if (ImGui::Checkbox("Apply max extents to zones with far away geometry", &useExtents))
@@ -1171,8 +1378,12 @@ void Application::ResetCamera()
 		m_r.x = 45;
 		m_r.y = -45;
 
+#if defined(__EMSCRIPTEN__)
+		render::SetFogRange(m_camr * 0.2f, m_camr * 1.25f);
+#else
 		glFogf(GL_FOG_START, m_camr * 0.2f);
 		glFogf(GL_FOG_END, m_camr * 1.25f);
+#endif
 	}
 }
 

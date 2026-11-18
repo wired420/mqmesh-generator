@@ -28,7 +28,7 @@ add_compile_options(
 	-Wno-microsoft-template -Wno-writable-strings
 )
 add_compile_definitions(FMT_HEADER_ONLY SPDLOG_FMT_EXTERNAL SPDLOG_HEADER_ONLY GLM_ENABLE_EXPERIMENTAL
-	GLM_FORCE_SILENT_WARNINGS _USE_MATH_DEFINES NOMINMAX)
+	GLM_FORCE_SILENT_WARNINGS GLM_FORCE_CTOR_INIT _USE_MATH_DEFINES NOMINMAX)
 
 # Generated include dir that merges "imgui/..." from the imgui core and the MQ imgui utils.
 set(GEN_INC ${CMAKE_BINARY_DIR}/gen-include)
@@ -162,7 +162,7 @@ if(EMSCRIPTEN)
 		-sPTHREAD_POOL_SIZE=navigator.hardwareConcurrency+2
 		-sSTACK_SIZE=4MB -sDEFAULT_PTHREAD_STACK_SIZE=2MB
 		-sEXPORTED_RUNTIME_METHODS=['FS','ccall','cwrap','HEAPU8']
-		-sEXPORTED_FUNCTIONS=['_main','_meshgen_files_ready','_meshgen_open_zone','_malloc','_free']
+		-sEXPORTED_FUNCTIONS=['_main','_meshgen_files_ready','_meshgen_open_zone','_meshgen_navmesh_ready','_meshgen_web_pick_folder','_meshgen_web_open_zone','_meshgen_web_build','_meshgen_web_status','_meshgen_web_save','_malloc','_free']
 		-sFORCE_FILESYSTEM=1
 		-sENVIRONMENT=web,worker
 		-sEXIT_RUNTIME=0
@@ -174,4 +174,18 @@ else()
 	target_compile_options(meshgen-cli PRIVATE "SHELL:-include ${SRC}/meshgen/pch.h")
 	target_compile_definitions(meshgen-cli PRIVATE SOURCE_DIR="${CMAKE_SOURCE_DIR}")
 	target_link_libraries(meshgen-cli ${LINK_LIBS} ZLIB::ZLIB Threads::Threads)
+endif()
+
+if(EMSCRIPTEN)
+	# Node.js build of the headless driver, for testing the wasm build of the core.
+	add_executable(meshgen-node ${CMAKE_SOURCE_DIR}/platform/cli_main.cpp)
+	target_compile_options(meshgen-node PRIVATE "SHELL:-include ${SRC}/meshgen/pch.h")
+	target_compile_definitions(meshgen-node PRIVATE SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+	target_link_libraries(meshgen-node meshgencore-headless navcommon zoneutils recast imgui ${PROTOBUF_ROOT}/lib/libprotobuf.a)
+	target_link_options(meshgen-node PRIVATE -pthread -sUSE_ZLIB=1 -sNODERAWFS=1 -sENVIRONMENT=node
+		-sALLOW_MEMORY_GROWTH=1 -sMAXIMUM_MEMORY=4GB -sPTHREAD_POOL_SIZE=8 -sSTACK_SIZE=4MB -sEXIT_RUNTIME=1)
+	add_library(meshgencore-headless STATIC ${MESHGEN_CORE})
+	target_compile_options(meshgencore-headless PRIVATE "SHELL:-include ${SRC}/meshgen/pch.h")
+	target_compile_definitions(meshgencore-headless PRIVATE MESHGEN_HEADLESS=1)
+	target_compile_definitions(meshgen-node PRIVATE MESHGEN_HEADLESS=1)
 endif()

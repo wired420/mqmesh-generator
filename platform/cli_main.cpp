@@ -90,6 +90,9 @@ int main(int argc, char** argv)
 	spdlog::info("Loaded {}: {} verts, {} tris in {} ms", zone, ml->getVertCount(), ml->getTriCount(),
 		std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count());
 
+	spdlog::info("Bounds min ({}, {}, {}) max ({}, {}, {})",
+		geom->getMeshBoundsMin().x, geom->getMeshBoundsMin().y, geom->getMeshBoundsMin().z,
+		geom->getMeshBoundsMax().x, geom->getMeshBoundsMax().y, geom->getMeshBoundsMax().z);
 	meshTool->handleGeometryChanged(geom.get());
 	navMesh->SetZoneName(zone);
 

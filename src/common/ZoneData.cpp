@@ -72,7 +72,7 @@ public:
 
 				for (auto& name : filenames)
 				{
-					std::string asset_file = fmt::format("{}/{}", m_zd->GetEQPath(), name);
+					std::string asset_file = fmt::format("{}/{}", m_zd->GetEQPath(), mq::to_lower_copy(name));
 					EQEmu::PFS::Archive archive;
 
 					if (!archive.Open(asset_file))
@@ -241,7 +241,7 @@ public:
 
 				for (auto& name : filenames)
 				{
-					std::string asset_file = fmt::format("{}/{}", m_zd->GetEQPath(), name);
+					std::string asset_file = fmt::format("{}/{}", m_zd->GetEQPath(), mq::to_lower_copy(name));
 					EQEmu::PFS::Archive archive;
 
 					if (!archive.Open(asset_file))
