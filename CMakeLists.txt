@@ -168,7 +168,7 @@ if(EMSCRIPTEN)
 		-sEXIT_RUNTIME=0
 		--embed-file ${SRC}/resources/Zones.ini@/app/resources/Zones.ini
 		--js-library ${CMAKE_SOURCE_DIR}/platform/web_files.js)
-	set_target_properties(meshgen PROPERTIES SUFFIX ".js")
+	set_target_properties(meshgen PROPERTIES SUFFIX ".js" LINK_DEPENDS "${CMAKE_SOURCE_DIR}/platform/web_files.js")
 else()
 	add_executable(meshgen-cli ${CMAKE_SOURCE_DIR}/platform/cli_main.cpp)
 	target_compile_options(meshgen-cli PRIVATE "SHELL:-include ${SRC}/meshgen/pch.h")

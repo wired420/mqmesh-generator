@@ -40,6 +40,11 @@ addToLibrary({
       var folder = folderName || '';
       for (var i = 0; i < fileList.length; i++) {
         var f = fileList[i];
+        // FileSystemFileHandle (directory picker) - already top level only.
+        if (f.kind === 'file' && f.getFile) {
+          map.set(f.name.toLowerCase(), f);
+          continue;
+        }
         var rel = f.webkitRelativePath || f.name;
         var parts = rel.split('/');
         if (!folder && parts.length > 1) folder = parts[0];
@@ -54,13 +59,35 @@ addToLibrary({
       if (Module.onFolderPicked) Module.onFolderPicked(folder, map.size);
     },
 
-    readFile: function (file) {
-      return file.arrayBuffer().then(function (buf) { return new Uint8Array(buf); });
+    // Accepts a File or a FileSystemFileHandle.
+    getFile: function (f) {
+      return (f.getFile && f.kind === 'file') ? f.getFile() : Promise.resolve(f);
+    },
+
+    readFile: function (f) {
+      return MeshGenFiles.getFile(f).then(function (file) { return file.arrayBuffer(); })
+        .then(function (buf) { return new Uint8Array(buf); });
     },
   },
 
   meshgen_js_pick_folder__deps: ['$MeshGenFiles'],
   meshgen_js_pick_folder: function () {
+    // Chrome/Edge: the File System Access API asks to "view files" and only
+    // lists the top folder. Files are opened lazily when a zone is loaded.
+    if (window.showDirectoryPicker) {
+      window.showDirectoryPicker({ id: 'everquest', mode: 'read' }).then(async function (dir) {
+        var handles = [];
+        for await (var entry of dir.values()) {
+          if (entry.kind === 'file') handles.push(entry);
+        }
+        MeshGenFiles.setFiles(handles, dir.name);
+      }).catch(function (err) {
+        if (err && err.name !== 'AbortError') console.error('Folder picker failed', err);
+      });
+      return;
+    }
+    // Other browsers: directory <input>. Its prompt says "upload", but the
+    // files are only read locally.
     var input = document.createElement('input');
     input.type = 'file';
     input.webkitdirectory = true;
@@ -100,7 +127,7 @@ addToLibrary({
     // EQG zones list extra archives in <zone>_assets.txt.
     var loadAssets = function () {
       if (!files || !files.has(zone + '_assets.txt')) return Promise.resolve();
-      return files.get(zone + '_assets.txt').text().then(function (text) {
+      return MeshGenFiles.getFile(files.get(zone + '_assets.txt')).then(function (f) { return f.text(); }).then(function (text) {
         var extra = text.split(/\s+/).map(function (n) { return n.trim().toLowerCase(); })
           .filter(function (n) { return n && files.has(n) && names.indexOf(n) < 0; });
         return Promise.all(extra.map(copyFile));

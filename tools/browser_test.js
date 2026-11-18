@@ -27,7 +27,9 @@ const path = require('path');
     for (const n of names) {
       const r = await fetch('testzone/' + n);
       const b = await r.blob();
-      files.push(new File([b], n));
+      const file = new File([b], n);
+      // Mimic FileSystemFileHandle objects from showDirectoryPicker.
+      files.push({ kind: 'file', name: n, getFile: async () => file });
     }
     Module.setEverQuestFiles(files, 'EverQuest');
     Module.ccall('meshgen_web_open_zone', null, ['string', 'number'], ['qeynos2', 0]);
