@@ -5,6 +5,7 @@
 
 #pragma once
 
+#if defined(_WIN32)
 #include "targetver.h"
 
 #if !defined(WIN32_LEAN_AND_MEAN)
@@ -13,6 +14,7 @@
 
 // Windows Header Files:
 #include <windows.h>
+#endif
 
 #include <math.h>
 
@@ -20,18 +22,28 @@
 #include <stdlib.h>
 #include <malloc.h>
 #include <memory.h>
+#if defined(_WIN32)
 #include <tchar.h>
+#endif
 #include <stdio.h>
 #include <cstdint>
 
 #include <iostream>
+#if defined(_WIN32)
 #include <tchar.h>
 #include <io.h>
+#endif
 #include <string>
 #include <fstream>
 
+#if defined(_WIN32)
 #include <shlobj.h>
 #include <Shlwapi.h>
+#endif
 
+#if !defined(MESHGEN_HEADLESS)
 #include <SDL2/SDL.h>
+#endif
+#if defined(_WIN32)
 #include <SDL2/SDL_syswm.h>
+#endif

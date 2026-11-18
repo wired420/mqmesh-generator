@@ -82,8 +82,8 @@ MapGeometryLoader::~MapGeometryLoader()
 
 void MapGeometryLoader::SetMaxExtents(const std::pair<glm::vec3, glm::vec3>& maxExtents)
 {
-	m_maxExtents.first = maxExtents.first.zxy;
-	m_maxExtents.second = maxExtents.second.zxy;
+	m_maxExtents.first = glm::vec3(maxExtents.first.z, maxExtents.first.x, maxExtents.first.y);
+	m_maxExtents.second = glm::vec3(maxExtents.second.z, maxExtents.second.x, maxExtents.second.y);
 
 	m_maxExtentsSet = true;
 }
@@ -230,7 +230,7 @@ bool MapGeometryLoader::load()
 		const glm::vec3& vert2 = collide_verts[collide_indices[index + 2]];
 		const glm::vec3& vert3 = collide_verts[collide_indices[index + 1]];
 
-		if (ArePointsOutsideExtents(vert1.yxz, vert2.yxz, vert3.yxz))
+		if (ArePointsOutsideExtents(glm::vec3(vert1.y, vert1.x, vert1.z), glm::vec3(vert2.y, vert2.x, vert2.z), glm::vec3(vert3.y, vert3.x, vert3.z)))
 			continue;
 
 		addVertex(vert1.x, vert1.z, vert1.y);
@@ -463,7 +463,7 @@ void MapGeometryLoader::LoadDoors()
 	//
 	// Load the door data
 	//
-	std::string filename = m_meshPath + "\\" + m_zoneName + "_doors.json";
+	std::string filename = m_meshPath + "/" + m_zoneName + "_doors.json";
 
 	std::error_code ec;
 	if (!fs::is_regular_file(filename, ec))
@@ -596,7 +596,7 @@ bool MapGeometryLoader::Build()
 {
 	eqLogMessage(LogTrace, "Attempting to load %s.eqg as a standard eqg.", m_zoneName.c_str());
 
-	std::string filePath = m_eqPath + "\\" + m_zoneName;
+	std::string filePath = m_eqPath + "/" + m_zoneName;
 
 	EQEmu::EQGLoader eqg;
 	std::vector<std::shared_ptr<EQEmu::EQG::Geometry>> eqg_models;

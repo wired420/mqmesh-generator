@@ -70,6 +70,7 @@ void ConfigureDefaultFont(ImFontAtlas* atlas)
 	static const ImWchar md_icon_ranges[] = { ICON_MIN_MD, ICON_MAX_MD, 0 };
 	atlas->AddFontFromMemoryCompressedTTF(GetMaterialIconsCompressedData(), GetMaterialIconsCompressedSize(), 16.0f, &mdConfig, md_icon_ranges);
 
+#if defined(_WIN32)
 	char szWindowsPath[MAX_PATH] = { 0 };
 	if (::GetWindowsDirectoryA(szWindowsPath, MAX_PATH) != 0)
 	{
@@ -86,6 +87,7 @@ void ConfigureDefaultFont(ImFontAtlas* atlas)
 			ConsoleFont = atlas->AddFontFromFileTTF(szConsoleFont, 13.0f, &consoleFontConfig);
 		}
 	}
+#endif
 
 	if (!ConsoleFont)
 	{
@@ -577,6 +579,7 @@ void ImageNineSlice(ImTextureRef tex_ref, const NineSliceImageParams& image_para
 } // namespace mq::imgui
 
 
+#if defined(_WIN32)
 void ImGuiLogDebug(const char* fmt, ...)
 {
 	va_list vaList;
@@ -593,3 +596,4 @@ void ImGuiLogDebug(const char* fmt, ...)
 
 	OutputDebugStringA(szOutput);
 }
+#endif

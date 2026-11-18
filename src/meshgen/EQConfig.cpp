@@ -4,14 +4,18 @@
 
 #include "meshgen/EQConfig.h"
 
+#if defined(_WIN32)
 #include <windows.h>
 #include <ShObjIdl.h>
+#endif
+#include <fstream>
 
 #include <algorithm>
 #include <istream>
 #include <string>
 #include <sstream>
 
+#if defined(_WIN32)
 #pragma comment(lib, "Shlwapi.lib")
 
 EQConfig::EQConfig()
@@ -124,6 +128,8 @@ static std::string OpenFileDialog(const char* defaultPath, const char* message)
 	return resultString;
 }
 
+#endif // _WIN32
+
 std::string EQConfig::GetLongNameForShortName(const std::string& shortName)
 {
 	auto iter = m_mapNames.find(shortName);
@@ -133,6 +139,7 @@ std::string EQConfig::GetLongNameForShortName(const std::string& shortName)
 	return std::string();
 }
 
+#if defined(_WIN32)
 void EQConfig::LoadConfigFromIni()
 {
 	// Construct the path to the ini file
@@ -185,13 +192,58 @@ void EQConfig::SaveConfigToIni()
 	WritePrivateProfileString("General", "ZoneMaxExtents", m_useMaxExtents ? "true" : "false", fullPath);
 }
 
+#else // !_WIN32
+
+// Web build: the user's files are mounted into a virtual file system.
+//   /eq                      - EverQuest files the user picked
+//   /mq                      - MacroQuest root (navmesh output lives in /mq/resources/MQ2Nav)
+//   /app/resources/Zones.ini - zone list bundled with the app
+std::string EQConfig::s_everquestPath = "/eq";
+std::string EQConfig::s_mq2Path = "/mq";
+std::string EQConfig::s_zonesIni = "/app/resources/Zones.ini";
+
+EQConfig::EQConfig()
+{
+	LoadConfigFromIni();
+	LoadZones();
+}
+
+EQConfig::~EQConfig()
+{
+}
+
+void EQConfig::LoadConfigFromIni()
+{
+	m_everquestPath = s_everquestPath;
+	m_mq2Path = s_mq2Path;
+	m_outputPath = m_mq2Path + "/resources/MQ2Nav";
+}
+
+void EQConfig::SaveConfigToIni()
+{
+}
+
+void EQConfig::SelectEverquestPath()
+{
+}
+
+void EQConfig::SelectOutputPath()
+{
+}
+
+#endif // _WIN32
+
 void EQConfig::LoadZones()
 {
+#if defined(_WIN32)
 	// Construct the path to the ini file
 	CHAR fullPath[MAX_PATH] = { 0 };
 	GetModuleFileNameA(NULL, fullPath, MAX_PATH);
 	PathRemoveFileSpecA(fullPath);
 	PathAppendA(fullPath, "resources\\Zones.ini");
+#else
+	const char* fullPath = s_zonesIni.c_str();
+#endif
 
 	m_loadedMaps.clear();
 	m_mapNames.clear();
@@ -238,6 +290,7 @@ void EQConfig::LoadZones()
 	}
 }
 
+#if defined(_WIN32)
 void EQConfig::SelectEverquestPath()
 {
 	std::string result = OpenFileDialog("c:\\Program Files (x86)\\Sony\\EverQuest", "Find Everquest Directory");
@@ -261,3 +314,4 @@ void EQConfig::SelectOutputPath()
 		SaveConfigToIni();
 	}
 }
+#endif // _WIN32

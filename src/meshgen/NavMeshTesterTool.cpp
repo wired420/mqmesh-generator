@@ -224,12 +224,12 @@ void NavMeshTesterTool::init(NavMeshTool* meshTool)
 
 void NavMeshTesterTool::handleMenu()
 {
-	glm::vec3 start = m_spos.zxy;
+	glm::vec3 start = glm::vec3(m_spos.z, m_spos.x, m_spos.y);
 	if (ImGui::InputFloat3("Start loc", glm::value_ptr(start)))
-		m_spos = start.yzx;
-	glm::vec3 end = m_epos.zxy;
+		m_spos = glm::vec3(start.y, start.z, start.x);
+	glm::vec3 end = glm::vec3(m_epos.z, m_epos.x, m_epos.y);
 	if (ImGui::InputFloat3("End loc", glm::value_ptr(end)))
-		m_epos = end.yzx;
+		m_epos = glm::vec3(end.y, end.z, end.x);
 
 
 	if (ImGui::RadioButton("Pathfind Follow", m_toolMode == ToolMode::PATHFIND_FOLLOW))

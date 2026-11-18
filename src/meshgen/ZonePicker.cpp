@@ -22,8 +22,8 @@
 //----------------------------------------------------------------------------
 
 std::vector<std::string> ExpansionLogoFiles = {
-	"uifiles\\default\\EQ_expansion_logos.tga",
-	"uifiles\\default\\EQ_expansion_logos2.tga"
+	"uifiles/default/EQ_expansion_logos.tga",
+	"uifiles/default/EQ_expansion_logos2.tga"
 };
 
 
@@ -67,7 +67,7 @@ ZonePicker::ZonePicker(const EQConfig& eqConfig, bool batchMode)
 #if EXPANSION_BUTTONS
 	for (const auto& expansionFile : ExpansionLogoFiles)
 	{
-		std::string path = m_eqDirectory + "\\" + expansionFile;
+		std::string path = m_eqDirectory + "/" + expansionFile;
 
 		IMAGEDATA image;
 		image.data = stbi_load(path.c_str(), &image.width, &image.height, &image.bits, 4);

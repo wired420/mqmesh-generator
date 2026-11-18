@@ -13,6 +13,27 @@
 //-----------------------------------------------------------------------------
 
 #pragma once
+#if !defined(_WIN32)
+// Web / non-Windows build of the MQ imgui fork: static, no freetype, no eqlib.
+#include <stdexcept>
+#include <type_traits>
+#define IMGUI_API
+#define IMGUI_IMPL_API
+#define IMPLOT_API
+class ImGuiException : public std::runtime_error {
+public:
+    ImGuiException(const char* what) : std::runtime_error(what) {}
+};
+#ifndef DEPRECATE
+#define DEPRECATE(msg)
+#endif
+#define IMGUI_INCLUDE_IMGUI_USER_H
+#define IMGUI_ENABLE_STB_TRUETYPE
+#define IM_VEC4_CLASS_EXTRA \
+    static ImVec4 FromImU32(ImU32 u32); \
+    ImU32 ToImU32() const;
+#define IMGUI_DEFINE_MATH_OPERATORS
+#else
 
 #include "mq/base/Deprecation.h"
 #include "eqlib/BuildType.h"
@@ -341,3 +362,5 @@ inline bool operator!=(const ImGuiTextureObject& a, const ImGuiTextureObject& b)
 #define ImTextureID void*
 
 #endif // !HAS_DIRECTX_11
+
+#endif // _WIN32

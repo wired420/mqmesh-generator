@@ -1179,7 +1179,7 @@ void Application::ResetCamera()
 std::string Application::GetMeshFilename()
 {
 	std::stringstream ss;
-	ss << m_eqConfig.GetOutputPath() << "\\" << m_zoneShortname << ".navmesh";
+	ss << m_eqConfig.GetOutputPath() << "/" << m_zoneShortname << ".navmesh";
 
 	return ss.str();
 }

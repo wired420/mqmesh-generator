@@ -12,7 +12,12 @@
 #include "imgui/ImGuiUtils.h"
 
 #include <Recast.h>
+#if !defined(MESHGEN_HEADLESS)
 #include <SDL2/SDL.h>
+#else
+struct SDL_Window;
+typedef void* SDL_GLContext;
+#endif
 #include <glm/glm.hpp>
 #include <imgui/imgui.h>
 #include <spdlog/spdlog.h>
@@ -27,6 +32,7 @@
 #include <mutex>
 #include <thread>
 #include <chrono>
+#include <array>
 
 class RecastContext;
 class InputGeom;

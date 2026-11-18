@@ -7,11 +7,13 @@
 #include <zlib.h>
 #include <cstdio>
 
+#if defined(_WIN32)
 #if !defined(WIN32_LEAN_AND_MEAN)
 #define WIN32_LEAN_AND_MEAN
 #endif
 
 #include <Windows.h>
+#endif
 
 #include <imgui.h>
 #include <imgui_internal.h>
@@ -125,6 +127,7 @@ bool DecompressMemory(void* in_data, size_t in_data_size, std::vector<uint8_t>& 
 
 //----------------------------------------------------------------------------
 
+#if defined(_WIN32)
 EXTERN_C IMAGE_DOS_HEADER __ImageBase;
 
 inline HINSTANCE GetComponentInstance()
@@ -155,6 +158,13 @@ std::string_view LoadResource(int resourceId)
 
 	return ret;
 }
+#else
+// Web build: resources are not embedded in the binary.
+std::string_view LoadResource(int resourceId)
+{
+	return {};
+}
+#endif
 
 using namespace ImGui;
 

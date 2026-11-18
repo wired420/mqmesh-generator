@@ -154,7 +154,7 @@ public:
 		ClearDisconnected();
 	}
 
-	friend class Connection;
+	friend Connection;
 };
 
 template <typename... T>

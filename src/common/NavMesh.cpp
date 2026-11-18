@@ -13,6 +13,10 @@
 #include "google/protobuf/io/zero_copy_stream.h"
 #include "google/protobuf/io/zero_copy_stream_impl.h"
 #include "google/protobuf/util/json_util.h"
+#if GOOGLE_PROTOBUF_VERSION < 4022000
+// protobuf 3.21 (used by the web build) predates the switch to absl::Status.
+namespace absl { using Status = google::protobuf::util::Status; }
+#endif
 #include "glm/gtc/type_ptr.hpp"
 #include "rapidjson/document.h"
 #include "rapidjson/filereadstream.h"

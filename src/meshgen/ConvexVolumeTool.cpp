@@ -516,7 +516,11 @@ std::vector<dtTileRef> ConvexVolumeToolState::handleVolumeClick(const glm::vec3&
 	else
 	{
 		// Create
+#if defined(MESHGEN_HEADLESS)
+		bool alt = false;
+#else
 		bool alt = (SDL_GetModState() & KMOD_ALT) != 0;
+#endif
 
 		// If clicked on that last pt, create the shape.
 		if (!m_pts.empty() && (alt || distSqr(p, m_pts[m_pts.size() - 1]) < rcSqr(0.2f)))

@@ -45,6 +45,13 @@ public:
 
 	const std::map<std::string, std::string>& GetAllMaps() const { return m_mapNames; }
 
+#if !defined(_WIN32)
+	// Paths used by the web build (set before constructing EQConfig).
+	static std::string s_everquestPath;
+	static std::string s_mq2Path;
+	static std::string s_zonesIni;
+#endif
+
 private:
 	void LoadConfigFromIni();
 	void SaveConfigToIni();

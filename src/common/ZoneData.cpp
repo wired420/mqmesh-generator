@@ -41,7 +41,7 @@ public:
 
 	static std::string GetZoneFile(ZoneData* zd)
 	{
-		return fmt::format("{}\\{}.eqg", zd->GetEQPath(), zd->GetZoneName());
+		return fmt::format("{}/{}.eqg", zd->GetEQPath(), zd->GetZoneName());
 	}
 
 	static bool IsValid(ZoneData* zd)
@@ -54,7 +54,7 @@ public:
 	{
 		bool loadedSomething = m_archive.Open(GetZoneFile(m_zd));
 
-		std::string base_filename = fmt::format("{}\\{}", m_zd->GetEQPath(), m_zd->GetZoneName());
+		std::string base_filename = fmt::format("{}/{}", m_zd->GetEQPath(), m_zd->GetZoneName());
 
 		// next we need to try to read an _assets file and load more eqg based data.
 		std::string assets_file = base_filename + "_assets.txt";
@@ -72,7 +72,7 @@ public:
 
 				for (auto& name : filenames)
 				{
-					std::string asset_file = fmt::format("{}\\{}", m_zd->GetEQPath(), name);
+					std::string asset_file = fmt::format("{}/{}", m_zd->GetEQPath(), name);
 					EQEmu::PFS::Archive archive;
 
 					if (!archive.Open(asset_file))
@@ -172,7 +172,7 @@ public:
 
 	static bool IsValid(ZoneData* zd)
 	{
-		std::string filename = fmt::format("{}\\{}.s3d", zd->GetEQPath(), zd->GetZoneName());
+		std::string filename = fmt::format("{}/{}.s3d", zd->GetEQPath(), zd->GetZoneName());
 
 		std::error_code ec;
 		return fs::exists(filename, ec);
@@ -182,7 +182,7 @@ public:
 	{
 		std::vector<EQEmu::S3D::WLDFragment> zone_object_frags;
 
-		std::string base_filename = fmt::format("{}\\{}", m_zd->GetEQPath(), m_zd->GetZoneName());
+		std::string base_filename = fmt::format("{}/{}", m_zd->GetEQPath(), m_zd->GetZoneName());
 		bool loadedSomething = false;
 
 		EQEmu::PFS::Archive archive;
@@ -196,7 +196,7 @@ public:
 				suffix += std::to_string(i);
 
 			std::string wld_name = m_zd->GetZoneName() + suffix + ".wld";
-			std::string file_name = fmt::format("{}\\{}.s3d", m_zd->GetEQPath(), m_zd->GetZoneName() + suffix);
+			std::string file_name = fmt::format("{}/{}.s3d", m_zd->GetEQPath(), m_zd->GetZoneName() + suffix);
 
 			EQEmu::S3DLoader loader;
 			std::vector<EQEmu::S3D::WLDFragment> frags;
@@ -241,7 +241,7 @@ public:
 
 				for (auto& name : filenames)
 				{
-					std::string asset_file = fmt::format("{}\\{}", m_zd->GetEQPath(), name);
+					std::string asset_file = fmt::format("{}/{}", m_zd->GetEQPath(), name);
 					EQEmu::PFS::Archive archive;
 
 					if (!archive.Open(asset_file))

@@ -26,8 +26,12 @@
 #include <glm/gtc/type_ptr.hpp>
 #include <imgui.h>
 
-#include <ppl.h>
-#include <agents.h>
+#include <atomic>
+#include <filesystem>
+#include <mutex>
+#include <thread>
+#include <vector>
+#include <algorithm>
 
 //----------------------------------------------------------------------------
 
@@ -670,7 +674,8 @@ void NavMeshTool::CancelBuildAllTiles(bool wait)
 void NavMeshTool::setOutputPath(const char* output_path)
 {
 	strcpy(m_outputPath, output_path);
-	CreateDirectory(output_path, nullptr);
+	std::error_code ec;
+	std::filesystem::create_directories(output_path, ec);
 }
 
 void NavMeshTool::resetCommonSettings()
@@ -804,43 +809,9 @@ struct TileData
 
 using TileDataPtr = std::shared_ptr<TileData>;
 
-class NavmeshUpdaterAgent : public concurrency::agent
-{
-public:
-	explicit NavmeshUpdaterAgent(concurrency::ISource<TileDataPtr>& dataSource,
-		const std::shared_ptr<dtNavMesh>& navMesh)
-		: m_source(dataSource)
-		, m_navMesh(navMesh)
-	{
-	}
-
-protected:
-	virtual void run() override
-	{
-		TileDataPtr data = receive(m_source);
-		while (data != nullptr)
-		{
-			// Remove any previous data (navmesh owns and deletes the data).
-			m_navMesh->removeTile(m_navMesh->getTileRefAt(data->x, data->y, 0), 0, 0);
-
-			// Let the navmesh own the data.
-			dtStatus status = m_navMesh->addTile(data->data, data->length, DT_TILE_FREE_DATA, 0, 0);
-			if (dtStatusFailed(status))
-			{
-				dtFree(data->data);
-			}
-
-			data = receive(m_source);
-		}
-
-		done();
-	}
-
-private:
-	concurrency::ISource<TileDataPtr>& m_source;
-	std::shared_ptr<dtNavMesh> m_navMesh;
-};
-
+// Portable replacement for the original PPL (concurrency::task_group + agent)
+// implementation: a fixed pool of std::threads pulls tile coordinates from a
+// shared counter, and finished tiles are added to the navmesh under a lock.
 void NavMeshTool::BuildAllTiles(const std::shared_ptr<dtNavMesh>& navMesh, bool async)
 {
 	if (!m_geom) return;
@@ -853,8 +824,10 @@ void NavMeshTool::BuildAllTiles(const std::shared_ptr<dtNavMesh>& navMesh, bool 
 		if (m_buildThread.joinable())
 			m_buildThread.join();
 
+		m_buildingTiles = true;
 		m_buildThread = std::thread([this, navMesh]()
 			{
+				m_buildingTiles = false;
 				BuildAllTiles(navMesh, false);
 			});
 		return;
@@ -876,64 +849,69 @@ void NavMeshTool::BuildAllTiles(const std::shared_ptr<dtNavMesh>& navMesh, bool 
 
 	auto offMeshConnections = m_navMesh->CreateOffMeshConnectionBuffer();
 
-	//concurrency::CurrentScheduler::Create(concurrency::SchedulerPolicy(1, concurrency::MaxConcurrency, 3));
-
-	concurrency::unbounded_buffer<TileDataPtr> agentTiles;
-	NavmeshUpdaterAgent updater_agent(agentTiles, navMesh);
-
-	updater_agent.start();
-
 	// Start the build process.
 	m_ctx->startTimer(RC_TIMER_TEMP);
 
-	concurrency::task_group tasks;
-	for (int x = 0; x < tw; x++)
+	std::mutex addMutex;
+	std::atomic<int> nextTile{ 0 };
+	const int totalTiles = tw * th;
+
+	auto worker = [&]()
 	{
-		for (int y = 0; y < th; y++)
+		for (;;)
 		{
-			tasks.run([this, x, y, &bmin, &bmax, tcs, &agentTiles, offMeshConnections]()
+			if (m_cancelTiles)
+				return;
+
+			int index = nextTile++;
+			if (index >= totalTiles)
+				return;
+
+			int x = index / th;
+			int y = index % th;
+
+			++m_tilesBuilt;
+
+			glm::vec3 tileBmin, tileBmax;
+			tileBmin[0] = bmin[0] + x * tcs;
+			tileBmin[1] = bmin[1];
+			tileBmin[2] = bmin[2] + y * tcs;
+
+			tileBmax[0] = bmin[0] + (x + 1)*tcs;
+			tileBmax[1] = bmax[1];
+			tileBmax[2] = bmin[2] + (y + 1)*tcs;
+
+			int dataSize = 0;
+			uint8_t* data = buildTileMesh(x, y, glm::value_ptr(tileBmin),
+				glm::value_ptr(tileBmax), offMeshConnections, dataSize);
+
+			if (data)
+			{
+				std::lock_guard<std::mutex> lock(addMutex);
+
+				// Remove any previous data (navmesh owns and deletes the data).
+				navMesh->removeTile(navMesh->getTileRefAt(x, y, 0), 0, 0);
+
+				// Let the navmesh own the data.
+				dtStatus status = navMesh->addTile(data, dataSize, DT_TILE_FREE_DATA, 0, 0);
+				if (dtStatusFailed(status))
 				{
-					if (m_cancelTiles)
-						return;
-
-					++m_tilesBuilt;
-
-					glm::vec3 tileBmin, tileBmax;
-					tileBmin[0] = bmin[0] + x * tcs;
-					tileBmin[1] = bmin[1];
-					tileBmin[2] = bmin[2] + y * tcs;
-
-					tileBmax[0] = bmin[0] + (x + 1)*tcs;
-					tileBmax[1] = bmax[1];
-					tileBmax[2] = bmin[2] + (y + 1)*tcs;
-
-					int dataSize = 0;
-					uint8_t* data = buildTileMesh(x, y, glm::value_ptr(tileBmin),
-						glm::value_ptr(tileBmax), offMeshConnections, dataSize);
-
-					if (data)
-					{
-						TileDataPtr tileData = std::make_shared<TileData>();
-						tileData->data = data;
-						tileData->length = dataSize;
-						tileData->x = x;
-						tileData->y = y;
-
-						asend(agentTiles, tileData);
-					}
-				});
+					dtFree(data);
+				}
+			}
 		}
-	}
+	};
 
-	tasks.wait();
+	unsigned int numThreads = std::max(1u, std::thread::hardware_concurrency());
+	if (numThreads > 16) numThreads = 16;
 
-	// send terminator
-	asend(agentTiles, TileDataPtr());
+	std::vector<std::thread> threads;
+	threads.reserve(numThreads);
+	for (unsigned int i = 0; i < numThreads; ++i)
+		threads.emplace_back(worker);
+	for (auto& t : threads)
+		t.join();
 
-	concurrency::agent::wait(&updater_agent);
-
-
-	// Start the build process.
 	m_ctx->stopTimer(RC_TIMER_TEMP);
 
 	m_totalBuildTimeMs = m_ctx->getAccumulatedTime(RC_TIMER_TEMP) / 1000.0f;
