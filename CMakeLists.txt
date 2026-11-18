@@ -162,7 +162,7 @@ if(EMSCRIPTEN)
 		-sPTHREAD_POOL_SIZE=navigator.hardwareConcurrency+2
 		-sSTACK_SIZE=4MB -sDEFAULT_PTHREAD_STACK_SIZE=2MB
 		-sEXPORTED_RUNTIME_METHODS=['FS','ccall','cwrap','HEAPU8']
-		-sEXPORTED_FUNCTIONS=['_main','_meshgen_files_ready','_meshgen_open_zone','_meshgen_navmesh_ready','_meshgen_web_pick_folder','_meshgen_web_open_zone','_meshgen_web_build','_meshgen_web_status','_meshgen_web_save','_meshgen_web_publish','_malloc','_free']
+		-sEXPORTED_FUNCTIONS=['_main','_meshgen_files_ready','_meshgen_open_zone','_meshgen_navmesh_ready','_meshgen_web_pick_folder','_meshgen_web_open_zone','_meshgen_web_build','_meshgen_web_status','_meshgen_web_save','_meshgen_web_publish','_meshgen_web_output_path','_malloc','_free']
 		-sFORCE_FILESYSTEM=1
 		-sENVIRONMENT=web,worker
 		-sEXIT_RUNTIME=0

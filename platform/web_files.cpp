@@ -119,3 +119,12 @@ extern "C" EMSCRIPTEN_KEEPALIVE void meshgen_web_publish()
 	if (s_app)
 		s_app->PublishMesh();
 }
+
+// Folder where <zone>.navmesh files are read and written (used to open a mesh
+// handed to the page by URL).
+extern "C" EMSCRIPTEN_KEEPALIVE const char* meshgen_web_output_path()
+{
+	static std::string path;
+	path = s_app ? s_app->GetOutputPathPublic() : std::string();
+	return path.c_str();
+}

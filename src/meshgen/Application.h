@@ -132,6 +132,7 @@ public:
 	void SaveMeshPublic() { SaveMesh(); }
 	void PublishMesh();
 	int GetWebStatus() const;
+	std::string GetOutputPathPublic() { return m_eqConfig.GetOutputPath(); }
 
 	//------------------------------------------------------------------------
 
