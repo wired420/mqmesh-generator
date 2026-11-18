@@ -5,7 +5,10 @@
 // files for the zone being opened into the virtual file system at /eq.
 
 addToLibrary({
-  $MeshGenFiles__postset: 'Module["setEverQuestFiles"] = function (files, folder) { MeshGenFiles.setFiles(files, folder); };',
+  $MeshGenFiles__postset: 'Module["setEverQuestFiles"] = function (files, folder) { MeshGenFiles.setFiles(files, folder); };' +
+    'Module["getSavedFolder"] = function () { return MeshGenFiles.getSavedFolder(); };' +
+    'Module["useSavedFolder"] = function (dir, ask) { return MeshGenFiles.useSavedFolder(dir, ask); };' +
+    'Module["forgetSavedFolder"] = function () { return MeshGenFiles.forgetSavedFolder(); };',
   $MeshGenFiles: {
     files: null,        // Map: lower case file name -> File
     folderName: '',
@@ -59,6 +62,74 @@ addToLibrary({
       if (Module.onFolderPicked) Module.onFolderPicked(folder, map.size);
     },
 
+    // ---- Remembered EverQuest folder (Chrome/Edge only). The folder handle
+    // is kept in this browser's IndexedDB; the browser still decides whether
+    // the site may read it again, so it may ask once per visit.
+    settingsDb: function () {
+      return new Promise(function (resolve, reject) {
+        var req = indexedDB.open('mqmesh-generator-settings', 1);
+        req.onupgradeneeded = function () { req.result.createObjectStore('settings'); };
+        req.onsuccess = function () { resolve(req.result); };
+        req.onerror = function () { reject(req.error); };
+      });
+    },
+
+    settingsOp: function (mode, fn) {
+      return MeshGenFiles.settingsDb().then(function (db) {
+        return new Promise(function (resolve, reject) {
+          var tx = db.transaction('settings', mode);
+          var req = fn(tx.objectStore('settings'));
+          tx.oncomplete = function () { db.close(); resolve(req ? req.result : undefined); };
+          tx.onerror = function () { db.close(); reject(tx.error); };
+        });
+      });
+    },
+
+    saveFolder: function (dir) {
+      return MeshGenFiles.settingsOp('readwrite', function (store) { return store.put(dir, 'eqFolder'); })
+        .catch(function (err) { console.warn('Could not remember the EverQuest folder', err); });
+    },
+
+    // Resolves to the saved FileSystemDirectoryHandle, or null.
+    getSavedFolder: function () {
+      if (!window.showDirectoryPicker || !window.indexedDB) return Promise.resolve(null);
+      return MeshGenFiles.settingsOp('readonly', function (store) { return store.get('eqFolder'); })
+        .then(function (dir) { return dir || null; })
+        .catch(function () { return null; });
+    },
+
+    forgetSavedFolder: function () {
+      return MeshGenFiles.settingsOp('readwrite', function (store) { return store.delete('eqFolder'); })
+        .catch(function () {});
+    },
+
+    // Loads a directory handle. With ask=true (call from a click) the browser
+    // may prompt for permission; otherwise it only loads if already allowed.
+    // Resolves to true when the folder was loaded.
+    useSavedFolder: function (dir, ask) {
+      var opts = { mode: 'read' };
+      return dir.queryPermission(opts).then(function (state) {
+        if (state === 'granted') return state;
+        return ask ? dir.requestPermission(opts) : state;
+      }).then(function (state) {
+        if (state !== 'granted') return false;
+        return MeshGenFiles.loadFolder(dir, false).then(function () { return true; });
+      }).catch(function (err) {
+        // Folder moved or deleted.
+        console.warn('Saved EverQuest folder is not available', err);
+        return false;
+      });
+    },
+
+    loadFolder: async function (dir, save) {
+      var handles = [];
+      for await (var entry of dir.values()) {
+        if (entry.kind === 'file') handles.push(entry);
+      }
+      if (save) MeshGenFiles.saveFolder(dir);
+      MeshGenFiles.setFiles(handles, dir.name);
+    },
+
     // Accepts a File or a FileSystemFileHandle.
     getFile: function (f) {
       return (f.getFile && f.kind === 'file') ? f.getFile() : Promise.resolve(f);
@@ -75,12 +146,8 @@ addToLibrary({
     // Chrome/Edge: the File System Access API asks to "view files" and only
     // lists the top folder. Files are opened lazily when a zone is loaded.
     if (window.showDirectoryPicker) {
-      window.showDirectoryPicker({ id: 'everquest', mode: 'read' }).then(async function (dir) {
-        var handles = [];
-        for await (var entry of dir.values()) {
-          if (entry.kind === 'file') handles.push(entry);
-        }
-        MeshGenFiles.setFiles(handles, dir.name);
+      window.showDirectoryPicker({ id: 'everquest', mode: 'read' }).then(function (dir) {
+        return MeshGenFiles.loadFolder(dir, true);
       }).catch(function (err) {
         if (err && err.name !== 'AbortError') console.error('Folder picker failed', err);
       });
