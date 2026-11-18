@@ -16,6 +16,7 @@ extern "C" {
 	void meshgen_js_request_zone(const char* zone);
 	void meshgen_js_pick_navmesh(const char* destPath);
 	void meshgen_js_download(const char* path, const char* name);
+	void meshgen_js_publish(const char* path, const char* zone);
 }
 
 static Application* s_app = nullptr;
@@ -47,6 +48,7 @@ std::string GetFolderDescription()
 void RequestZoneFiles(const std::string& zoneShortName) { meshgen_js_request_zone(zoneShortName.c_str()); }
 void PickNavMeshFile(const std::string& destPath) { meshgen_js_pick_navmesh(destPath.c_str()); }
 void DownloadFile(const std::string& path, const std::string& name) { meshgen_js_download(path.c_str(), name.c_str()); }
+void PublishFile(const std::string& path, const std::string& zone) { meshgen_js_publish(path.c_str(), zone.c_str()); }
 
 } // namespace WebFiles
 
@@ -110,4 +112,10 @@ extern "C" EMSCRIPTEN_KEEPALIVE void meshgen_web_save()
 {
 	if (s_app)
 		s_app->SaveMeshPublic();
+}
+
+extern "C" EMSCRIPTEN_KEEPALIVE void meshgen_web_publish()
+{
+	if (s_app)
+		s_app->PublishMesh();
 }

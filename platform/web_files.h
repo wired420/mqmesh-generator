@@ -28,4 +28,7 @@ void PickNavMeshFile(const std::string& destPath);
 // Offers a file from the virtual file system as a browser download.
 void DownloadFile(const std::string& path, const std::string& downloadName);
 
+// Hands a saved navmesh to the site's upload form, opened in a new tab.
+void PublishFile(const std::string& path, const std::string& zoneShortName);
+
 } // namespace WebFiles

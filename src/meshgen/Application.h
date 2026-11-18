@@ -130,6 +130,7 @@ public:
 	void RequestZone(const std::string& zoneShortName, bool loadMesh);
 	void BuildNavMesh();
 	void SaveMeshPublic() { SaveMesh(); }
+	void PublishMesh();
 	int GetWebStatus() const;
 
 	//------------------------------------------------------------------------

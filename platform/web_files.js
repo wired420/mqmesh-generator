@@ -181,4 +181,37 @@ addToLibrary({
       console.error('Download failed', e);
     }
   },
+
+  // Stores the mesh in IndexedDB (shared with the rest of the site, same
+  // origin) and opens the upload form, which picks it up from there.
+  meshgen_js_publish: function (pathPtr, zonePtr) {
+    var path = UTF8ToString(pathPtr);
+    var zone = UTF8ToString(zonePtr).toLowerCase();
+    var data;
+    try { data = FS.readFile(path); } catch (e) { console.error('Publish: no saved mesh', e); return; }
+
+    var id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    var url = '/upload?zone=' + encodeURIComponent(zone) + '&type=mesh&generated=' + id;
+
+    // Open the tab now, while the click still counts as a user action.
+    var tab = window.open('about:blank', '_blank');
+
+    var req = indexedDB.open('mqmesh-generator', 1);
+    req.onupgradeneeded = function () { req.result.createObjectStore('publish'); };
+    req.onerror = function () { console.error('Publish: IndexedDB unavailable', req.error); if (tab) tab.close(); };
+    req.onsuccess = function () {
+      var db = req.result;
+      var tx = db.transaction('publish', 'readwrite');
+      tx.objectStore('publish').put({
+        name: zone + '.navmesh',
+        zone: zone,
+        created: Date.now(),
+        blob: new Blob([data], { type: 'application/octet-stream' }),
+      }, id);
+      tx.oncomplete = function () {
+        db.close();
+        if (tab) tab.location.href = url; else window.open(url, '_blank');
+      };
+    };
+  },
 });

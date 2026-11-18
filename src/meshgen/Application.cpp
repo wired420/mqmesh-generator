@@ -769,6 +769,13 @@ void Application::RenderInterface()
 			{
 				SaveMesh();
 			}
+#if defined(__EMSCRIPTEN__)
+			if (ImGui::MenuItem("Publish Mesh to MQMesh", "", nullptr,
+				!m_meshTool->isBuildingTiles() && m_navMesh->IsNavMeshLoaded()))
+			{
+				PublishMesh();
+			}
+#endif
 			if (ImGui::MenuItem("Reset Mesh", "", nullptr,
 				!m_meshTool->isBuildingTiles() && m_navMesh->IsNavMeshLoaded()))
 			{
@@ -848,6 +855,23 @@ void Application::RenderInterface()
 		ImGui::TextColored(ImColor(255, 255, 255, 128), msg);
 	}
 	ImGui::End();
+
+#if defined(__EMSCRIPTEN__)
+	// Credit and support notice for the web port (bottom left corner).
+	ImGui::SetNextWindowPos(ImVec2(10.0f, ImGui::GetIO().DisplaySize.y - 10.0f), ImGuiCond_Always, ImVec2(0.0f, 1.0f));
+	ImGui::SetNextWindowBgAlpha(0.45f);
+	if (ImGui::Begin("##Credits", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize
+		| ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav))
+	{
+		ImGui::TextColored(ImColor(255, 255, 255, 200), "MeshGenerator and MQ2Nav by brainiac.");
+		ImGui::SameLine();
+		if (ImGui::SmallButton("MQ2Nav on GitHub"))
+			emscripten_run_script("window.open('https://github.com/brainiac/MQ2Nav', '_blank', 'noopener')");
+		ImGui::TextColored(ImColor(255, 200, 80, 230), "This web version is maintained by MQMesh, not by brainiac.");
+		ImGui::TextColored(ImColor(255, 255, 255, 160), "Please report problems with it to MQMesh, not to the MQ2Nav project.");
+	}
+	ImGui::End();
+#endif
 
 	if (m_showFailedToOpenDialog)
 		ImGui::OpenPopup("Failed To Open");
@@ -939,6 +963,13 @@ void Application::RenderInterface()
 				ImGui::Separator();
 				if (ImGui::Button(ICON_FA_FLOPPY_O " Save"))
 					SaveMesh();
+#if defined(__EMSCRIPTEN__)
+				ImGui::SameLine();
+				if (ImGui::Button(ICON_FA_UPLOAD " Publish"))
+					PublishMesh();
+				if (ImGui::IsItemHovered())
+					ImGui::SetTooltip("Opens the MQMesh upload form in a new tab with this mesh attached.");
+#endif
 			}
 		}
 		ImGui::Separator();
@@ -1090,6 +1121,17 @@ void Application::SaveMesh()
 #if defined(__EMSCRIPTEN__)
 	// Hand the file to the browser as a download.
 	WebFiles::DownloadFile(m_navMesh->GetFullFilePath(), m_zoneShortname + ".navmesh");
+#endif
+}
+
+void Application::PublishMesh()
+{
+#if defined(__EMSCRIPTEN__)
+	if (m_meshTool->isBuildingTiles() || !m_navMesh->IsNavMeshLoaded())
+		return;
+
+	m_meshTool->SaveNavMesh();
+	WebFiles::PublishFile(m_navMesh->GetFullFilePath(), m_zoneShortname);
 #endif
 }
 
