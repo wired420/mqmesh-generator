@@ -764,7 +764,7 @@ void Application::RenderInterface()
 			{
 				OpenMesh();
 			}
-			if (ImGui::MenuItem("Save Mesh", "Ctrl+S", nullptr,
+			if (ImGui::MenuItem("Download Mesh", "Ctrl+S", nullptr,
 				!m_meshTool->isBuildingTiles() && m_navMesh->IsNavMeshLoaded()))
 			{
 				SaveMesh();
@@ -961,7 +961,7 @@ void Application::RenderInterface()
 			if (m_navMesh->IsNavMeshLoaded())
 			{
 				ImGui::Separator();
-				if (ImGui::Button(ICON_FA_FLOPPY_O " Save"))
+				if (ImGui::Button(ICON_FA_DOWNLOAD " Download"))
 					SaveMesh();
 #if defined(__EMSCRIPTEN__)
 				ImGui::SameLine();
